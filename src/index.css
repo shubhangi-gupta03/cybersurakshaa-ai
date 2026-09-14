@@ -1,0 +1,41 @@
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body,#root{height:100%;overflow:hidden;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#07101f;color:#dde6f4;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:#1e3460;border-radius:3px;}
+
+/* Animations */
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.2;}}
+@keyframes pulse{0%{transform:scale(1);opacity:1;}100%{transform:scale(2.5);opacity:0;}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes slideIn{from{transform:translateX(110%);opacity:0;}to{transform:translateX(0);opacity:1;}}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* Toast notifications */
+.toast-container{position:fixed;bottom:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:7px;}
+.toast-item{background:#0d1828;border:1px solid #1e3460;border-radius:9px;padding:10px 14px;font-size:12px;
+  display:flex;align-items:center;gap:8px;animation:slideIn .3s ease;box-shadow:0 6px 24px rgba(0,0,0,.5);max-width:320px;}
+.toast-item.ok{border-left:3px solid #00e676;}
+.toast-item.er{border-left:3px solid #ff3333;}
+.toast-item.inf{border-left:3px solid #1a6ef5;}
+.toast-item.ch{border-left:3px solid #7b5ef8;}
+.toast-item.warn{border-left:3px solid #ffab00;}
+
+/* Alert popup */
+.alert-popup{position:fixed;top:70px;right:18px;z-index:8888;max-width:340px;
+  background:#0d1828;border:1px solid #ff3333;border-radius:10px;padding:14px 16px;
+  animation:slideIn .4s ease;box-shadow:0 8px 32px rgba(255,51,51,.2);}
+.alert-popup.HIGH{border-color:#ffab00;box-shadow:0 8px 32px rgba(255,171,0,.15);}
+.alert-popup.WARNING{border-color:#ffab00;box-shadow:0 8px 32px rgba(255,171,0,.15);}
+.alert-popup.INFO{border-color:#1a6ef5;box-shadow:0 8px 32px rgba(26,110,245,.15);}
+
+/* Loading spinner */
+.spinner{width:20px;height:20px;border:2px solid #1e3460;border-top-color:#1a6ef5;
+  border-radius:50%;animation:spin .8s linear infinite;}
+
+/* Typing dots */
+.tdots{display:flex;gap:4px;padding:4px;}
+.td{width:7px;height:7px;background:#1a6ef5;border-radius:50%;animation:tdot 1.2s infinite;}
+.td:nth-child(2){animation-delay:.2s;}
+.td:nth-child(3){animation-delay:.4s;}
+@keyframes tdot{0%,60%,100%{transform:translateY(0);}30%{transform:translateY(-6px);}}
