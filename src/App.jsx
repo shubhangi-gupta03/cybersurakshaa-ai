@@ -9,6 +9,7 @@ import Evidence from './components/Evidence.jsx'
 import Blockchain from './components/Blockchain.jsx'
 import Suspects from './components/Suspects.jsx'
 import Helplines from './components/Helplines.jsx'
+import CaseManagement from './components/CaseManagement.jsx'
 
 // Supabase client (public anon key - safe to expose)
 const supabase = createClient(
@@ -25,8 +26,8 @@ const USERS = {
 }
 
 const ROLE_ACCESS = {
-  lea:     ['db','map','ml','chat','alerts','suspect','evidence','chain','hl'],
-  i4c:     ['db','map','ml','chat','alerts','suspect','evidence','chain','hl'],
+  lea:     ['db','map','ml','chat','alerts','suspect','evidence','chain','hl','cases'],
+  i4c:     ['db','map','ml','chat','alerts','suspect','evidence','chain','hl','cases'],
   bank:    ['db','map','chat','alerts','chain','hl'],
   citizen: ['chat','hl']
 }
@@ -39,6 +40,7 @@ const TABS = [
   { id:'alerts',   label:'🔔 Alerts',       roles:['lea','i4c','bank'] },
   { id:'suspect',  label:'🕵️ Suspects',     roles:['lea','i4c'] },
   { id:'evidence', label:'🗂️ Evidence',     roles:['lea','i4c'] },
+  { id:'cases', label:'📁 Cases', roles:['lea','i4c'] },
   { id:'chain',    label:'⛓️ Blockchain',   roles:['lea','i4c','bank'] },
   { id:'hl',       label:'🆘 Helplines',    roles:['lea','i4c','bank','citizen'] }
 ]
@@ -214,6 +216,7 @@ export default function App() {
         {page==='alerts'  && <AlertsPage {...pageProps} />}
         {page==='suspect' && <Suspects {...pageProps} />}
         {page==='evidence'&& <Evidence {...pageProps} />}
+        {page==='cases' && <CaseManagement {...pageProps} />}
         {page==='chain'   && <Blockchain {...pageProps} />}
         {page==='hl'      && <Helplines {...pageProps} />}
       </main>
