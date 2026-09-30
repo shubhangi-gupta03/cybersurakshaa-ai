@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import * as d3 from 'd3'
 
 // State-level fallback data (MHA H1 2026)
@@ -99,14 +99,14 @@ export default function ThreatMap({ user, toast }) {
   }, [])
 
   // Redraw on container resize
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!mapRef.current) return
     const ro = new ResizeObserver(() => {
       if (stateGeo && !loading) drawStateMap()
     })
     ro.observe(mapRef.current)
     return () => ro.disconnect()
-  }, [stateGeo, loading, selectedHour, selectedCrime])
+  }, [stateGeo, loading, drawStateMap])
 
   // Draw map when data loaded or settings change
   useEffect(() => {
@@ -261,7 +261,7 @@ export default function ThreatMap({ user, toast }) {
   const CRIME_OPTIONS = ['all','Investment Scam','Digital Arrest','UPI Fraud','ATM Fraud','OTP Scam','Fake Loan App']
 
   return (
-    <div style={{ display:'flex', height:'100%', minHeight:0 }}>
+    <div style={{ position:'absolute', inset:0, display:'flex' }}>
       {/* Map area */}
       <div style={{ flex:1, position:'relative', background:'#030a14', overflow:'hidden', minWidth:0 }} ref={mapRef}>
         {/* Top controls */}
