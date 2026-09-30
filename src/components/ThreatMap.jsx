@@ -125,9 +125,10 @@ export default function ThreatMap({ user, toast }) {
     svg.append('rect').attr('width',W).attr('height',H).attr('fill','#030a14')
 
     const todWeight = TOD[selectedHour]
-    // fitSize centers and scales automatically to fill the available area
-    const padding = 30
-    const proj = d3.geoMercator().fitExtent([[padding, padding],[W - padding, H - padding]], stateGeo)
+    // Fit only to non-disputed features so Pakistan/China extents don't shrink India
+    const mainGeo = { type: 'FeatureCollection', features: stateGeo.features.filter(f => !f.properties.DISPUTED) }
+    const padding = 20
+    const proj = d3.geoMercator().fitExtent([[padding, padding],[W - padding, H - padding]], mainGeo)
     const path = d3.geoPath().projection(proj)
 
     // Grid background
@@ -260,9 +261,9 @@ export default function ThreatMap({ user, toast }) {
   const CRIME_OPTIONS = ['all','Investment Scam','Digital Arrest','UPI Fraud','ATM Fraud','OTP Scam','Fake Loan App']
 
   return (
-    <div style={{ display:'flex', height:'100%' }}>
+    <div style={{ display:'flex', height:'100%', minHeight:0 }}>
       {/* Map area */}
-      <div style={{ flex:1, position:'relative', background:'#030a14', overflow:'hidden' }} ref={mapRef}>
+      <div style={{ flex:1, position:'relative', background:'#030a14', overflow:'hidden', minWidth:0 }} ref={mapRef}>
         {/* Top controls */}
         <div style={{ position:'absolute', top:10, left:'50%', transform:'translateX(-50%)', zIndex:20,
           display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'center' }}>
@@ -400,7 +401,7 @@ export default function ThreatMap({ user, toast }) {
       </div>
 
       {/* Sidebar */}
-      <div style={{ width:270, background:'#0d1828', borderLeft:'1px solid #1e3460',
+      <div style={{ width:270, flexShrink:0, background:'#0d1828', borderLeft:'1px solid #1e3460',
         display:'flex', flexDirection:'column', overflow:'hidden' }}>
         {/* Live stream */}
         <div style={{ padding:'10px 12px', borderBottom:'1px solid #1e3460' }}>
