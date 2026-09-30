@@ -141,7 +141,7 @@ export default function ThreatMap({ user, toast }) {
       .attr('d', path)
       .attr('fill', d => {
         const info = STATE_DATA[d.properties.NAME_1]
-        if (!info) return '#06101e'
+        if (!info) return '#0b1a2e'   // no-data states: visible dark blue, not black
         const adjustedC = info.c * todWeight
         if (adjustedC > 50000) return '#770000'
         if (adjustedC > 25000) return '#993300'
@@ -149,18 +149,23 @@ export default function ThreatMap({ user, toast }) {
         return '#043318'
       })
       .attr('fill-opacity', 0.85)
-      .attr('stroke','#050d1a').attr('stroke-width',0.8)
+      .attr('stroke', d => STATE_DATA[d.properties.NAME_1] ? '#050d1a' : '#2a4a80')
+      .attr('stroke-width', d => STATE_DATA[d.properties.NAME_1] ? 0.8 : 1.2)
+      .attr('stroke-dasharray', d => STATE_DATA[d.properties.NAME_1] ? null : '3,2')
       .style('cursor','pointer')
       .on('mousemove', (ev, d) => {
         const name = d.properties.NAME_1
-        const info = STATE_DATA[name]
+        const info = STATE_DATA[name]   // may be undefined — tooltip handles both cases
         const pos = d3.pointer(ev, el.parentElement)
         setTooltip({ name, info, x: pos[0]+14, y: pos[1]-10, type:'state' })
         d3.select(ev.target).attr('stroke','#00c8f0').attr('stroke-width',2)
       })
-      .on('mouseleave', ev => {
+      .on('mouseleave', (ev, d) => {
         setTooltip(null)
-        d3.select(ev.target).attr('stroke','#050d1a').attr('stroke-width',0.8)
+        const hasData = !!STATE_DATA[d.properties.NAME_1]
+        d3.select(ev.target)
+          .attr('stroke', hasData ? '#050d1a' : '#2a4a80')
+          .attr('stroke-width', hasData ? 0.8 : 1.2)
       })
       .on('click', (ev, d) => {
         const name = d.properties.NAME_1
@@ -440,6 +445,8 @@ export default function ThreatMap({ user, toast }) {
                   ATMs: {tooltip.dr.atms?.slice(0,2).join(', ')}
                 </div>
               </>
+            ) : tooltip.info === undefined && tooltip.type === 'state' ? (
+              <div style={{ fontSize:10, color:'#3a5270', fontStyle:'italic' }}>No data available</div>
             ) : tooltip.info ? (
               <>
                 <div style={{ fontSize:11 }}>
