@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import * as d3 from 'd3'
 
 // State-level fallback data (MHA H1 2026)
@@ -98,21 +98,7 @@ export default function ThreatMap({ user, toast }) {
     return () => clearInterval(i)
   }, [])
 
-  // Redraw on container resize
-  useLayoutEffect(() => {
-    if (!mapRef.current) return
-    const ro = new ResizeObserver(() => {
-      if (stateGeo && !loading) drawStateMap()
-    })
-    ro.observe(mapRef.current)
-    return () => ro.disconnect()
-  }, [stateGeo, loading, drawStateMap])
-
-  // Draw map when data loaded or settings change
-  useEffect(() => {
-    if (loading || !svgRef.current) return
-    if (stateGeo) drawStateMap()
-  }, [loading, stateGeo, selectedHour, selectedCrime])
+  const drawMapRef = useRef(null)
 
   const drawStateMap = useCallback(() => {
     if (!stateGeo || !svgRef.current || !mapRef.current) return
@@ -257,6 +243,23 @@ export default function ThreatMap({ user, toast }) {
         .attr('fill',info.col).attr('opacity',0.9)
     })
   }, [stateGeo, selectedHour, selectedCrime])
+
+  // Keep ref current so ResizeObserver always calls the latest version
+  drawMapRef.current = drawStateMap
+
+  // Draw map when data loaded or settings change
+  useEffect(() => {
+    if (loading || !svgRef.current || !stateGeo) return
+    drawStateMap()
+  }, [loading, stateGeo, selectedHour, selectedCrime, drawStateMap])
+
+  // ResizeObserver — stable (empty deps), calls via ref to avoid infinite loop
+  useEffect(() => {
+    if (!mapRef.current) return
+    const ro = new ResizeObserver(() => { drawMapRef.current?.() })
+    ro.observe(mapRef.current)
+    return () => ro.disconnect()
+  }, [])
 
   const CRIME_OPTIONS = ['all','Investment Scam','Digital Arrest','UPI Fraud','ATM Fraud','OTP Scam','Fake Loan App']
 
