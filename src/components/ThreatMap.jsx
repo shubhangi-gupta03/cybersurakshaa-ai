@@ -135,13 +135,28 @@ export default function ThreatMap({ user, toast }) {
     for (let x=0;x<W;x+=50) g0.append('line').attr('x1',x).attr('y1',0).attr('x2',x).attr('y2',H).attr('stroke','#1a3060').attr('stroke-width',0.5)
     for (let y=0;y<H;y+=50) g0.append('line').attr('x1',0).attr('y1',y).attr('x2',W).attr('y2',y).attr('stroke','#1a3060').attr('stroke-width',0.5)
 
+    // Hatch pattern for disputed territories
+    const defs = svg.append('defs')
+    defs.append('pattern')
+      .attr('id','hatch-disputed').attr('patternUnits','userSpaceOnUse')
+      .attr('width',6).attr('height',6)
+      .attr('patternTransform','rotate(45)')
+      .append('line').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',6)
+      .attr('stroke','#4a6080').attr('stroke-width',1.5)
+
     const gMap = svg.append('g')
-    gMap.selectAll('path')
-      .data(stateGeo.features).enter().append('path')
+    // Separate disputed vs regular features
+    const regularFeatures = stateGeo.features.filter(f => !f.properties.DISPUTED)
+    const disputedFeatures = stateGeo.features.filter(f => f.properties.DISPUTED)
+
+    // Draw regular states first
+    gMap.selectAll('path.state')
+      .data(regularFeatures).enter().append('path')
+      .attr('class','state')
       .attr('d', path)
       .attr('fill', d => {
         const info = STATE_DATA[d.properties.NAME_1]
-        if (!info) return '#0b1a2e'   // no-data states: visible dark blue, not black
+        if (!info) return '#0b1a2e'
         const adjustedC = info.c * todWeight
         if (adjustedC > 50000) return '#770000'
         if (adjustedC > 25000) return '#993300'
@@ -152,10 +167,10 @@ export default function ThreatMap({ user, toast }) {
       .attr('stroke', d => STATE_DATA[d.properties.NAME_1] ? '#050d1a' : '#2a4a80')
       .attr('stroke-width', d => STATE_DATA[d.properties.NAME_1] ? 0.8 : 1.2)
       .attr('stroke-dasharray', d => STATE_DATA[d.properties.NAME_1] ? null : '3,2')
-      .style('cursor','pointer')
+      .style('cursor','default')
       .on('mousemove', (ev, d) => {
         const name = d.properties.NAME_1
-        const info = STATE_DATA[name]   // may be undefined — tooltip handles both cases
+        const info = STATE_DATA[name]
         const pos = d3.pointer(ev, el.parentElement)
         setTooltip({ name, info, x: pos[0]+14, y: pos[1]-10, type:'state' })
         d3.select(ev.target).attr('stroke','#00c8f0').attr('stroke-width',2)
@@ -167,7 +182,44 @@ export default function ThreatMap({ user, toast }) {
           .attr('stroke', hasData ? '#050d1a' : '#2a4a80')
           .attr('stroke-width', hasData ? 0.8 : 1.2)
       })
-      .on('click', () => {})
+
+    // Draw disputed territories on top with hatch fill
+    const gDisputed = svg.append('g')
+    gDisputed.selectAll('path.disputed')
+      .data(disputedFeatures).enter().append('path')
+      .attr('class','disputed')
+      .attr('d', path)
+      .attr('fill', '#0d1e30')
+      .attr('fill-opacity', 0.9)
+      .attr('stroke', '#4a7090')
+      .attr('stroke-width', 1.2)
+      .attr('stroke-dasharray', '4,3')
+      .style('cursor','default')
+      .on('mousemove', (ev, d) => {
+        const name = d.properties.NAME_1
+        const typeLabel = d.properties.TYPE === 'AKSAI_CHIN'
+          ? 'Sino-Indian Disputed Territory'
+          : 'Pakistan-occupied Kashmir'
+        const pos = d3.pointer(ev, el.parentElement)
+        setTooltip({ name, disputed: true, typeLabel, x: pos[0]+14, y: pos[1]-10, type:'disputed' })
+        d3.select(ev.target).attr('stroke','#7ab0d0').attr('stroke-width',2)
+      })
+      .on('mouseleave', ev => {
+        setTooltip(null)
+        d3.select(ev.target).attr('stroke','#4a7090').attr('stroke-width',1.2)
+      })
+
+    // Disputed territory labels
+    gDisputed.selectAll('text.dl')
+      .data(disputedFeatures).enter().append('text')
+      .attr('class','dl').attr('text-anchor','middle').attr('dominant-baseline','middle')
+      .attr('font-family','system-ui').attr('pointer-events','none')
+      .attr('font-size','7px').attr('fill','#5a8aaa').attr('opacity',0.85)
+      .attr('x', d => { const c = path.centroid(d); return isNaN(c[0]) ? 0 : c[0] })
+      .attr('y', d => { const c = path.centroid(d); return isNaN(c[1]) ? 0 : c[1] })
+      .text(d => d.properties.NAME_1 === 'Aksai Chin' ? 'Aksai Chin'
+                : d.properties.NAME_1 === 'Gilgit-Baltistan' ? 'Gilgit-Baltistan'
+                : 'PoK')
 
     // State labels
     const labelStates = ['Rajasthan','Madhya Pradesh','Maharashtra','Uttar Pradesh','Gujarat','Karnataka','Andhra Pradesh','Tamil Nadu']
@@ -291,33 +343,32 @@ export default function ThreatMap({ user, toast }) {
               <div style={{width:18,height:6,borderRadius:2,background:x.c}}/>{x.l}
             </div>
           ))}
+          <div style={{ borderTop:'1px solid #1e3460', marginTop:5, paddingTop:5 }}>
+            <div style={{display:'flex',alignItems:'center',gap:6,fontSize:10,color:'#4a7090'}}>
+              <div style={{width:18,height:6,borderRadius:2,background:'#0d1e30',border:'1px dashed #4a7090'}}/> Disputed
+            </div>
+          </div>
         </div>
 
         {/* Tooltip */}
         {tooltip && (
           <div style={{ position:'absolute', left: Math.min(tooltip.x, (mapRef.current?.clientWidth||800)-220),
             top: tooltip.y, zIndex:30,
-            background:'rgba(3,10,20,.98)', border:'1px solid #2a4a80',
+            background:'rgba(3,10,20,.98)', border:`1px solid ${tooltip.type==='disputed'?'#4a7090':'#2a4a80'}`,
             borderRadius:8, padding:'10px 13px', minWidth:200, pointerEvents:'none' }}>
             <div style={{ fontSize:13, fontWeight:700, marginBottom:2 }}>
               {tooltip.name}
             </div>
-            {tooltip.type === 'district' && tooltip.state && (
-              <div style={{ fontSize:10, color:'#7a9cc0', marginBottom:4 }}>📍 {tooltip.state}</div>
-            )}
-            {tooltip.dr ? (
+            {tooltip.type === 'disputed' ? (
               <>
-                <div style={{ fontSize:11, marginBottom:2 }}>
-                  Complaints: <b style={{color:'#ff3333'}}>{tooltip.dr.complaints.toLocaleString('en-IN')}</b>
+                <div style={{ fontSize:10, color:'#5a8aaa', marginBottom:4, fontStyle:'italic' }}>
+                  🔶 {tooltip.typeLabel}
                 </div>
-                <div style={{ fontSize:11, marginBottom:2 }}>
-                  Risk: <b style={{color:RISK_COLORS[tooltip.dr.risk]}}>{tooltip.dr.risk}</b>
-                </div>
-                <div style={{ fontSize:10, color:'#7a9cc0' }}>
-                  ATMs: {tooltip.dr.atms?.slice(0,2).join(', ')}
+                <div style={{ fontSize:10, color:'#4a7090' }}>
+                  Indian Territory — Under dispute. No cybercrime data available.
                 </div>
               </>
-            ) : tooltip.info === undefined && tooltip.type === 'state' ? (
+            ) : tooltip.info === undefined ? (
               <div style={{ fontSize:10, color:'#3a5270', fontStyle:'italic' }}>No data available</div>
             ) : tooltip.info ? (
               <>
@@ -329,9 +380,11 @@ export default function ThreatMap({ user, toast }) {
                 </div>
               </>
             ) : null}
-            <div style={{ fontSize:9, color:'#3a5270', borderTop:'1px solid #1e3460', paddingTop:3, marginTop:4 }}>
-              Hour: {selectedHour.toString().padStart(2,'0')}:00 IST · TOD weight: {(TOD[selectedHour]*100).toFixed(0)}%
-            </div>
+            {tooltip.type !== 'disputed' && (
+              <div style={{ fontSize:9, color:'#3a5270', borderTop:'1px solid #1e3460', paddingTop:3, marginTop:4 }}>
+                Hour: {selectedHour.toString().padStart(2,'0')}:00 IST · TOD weight: {(TOD[selectedHour]*100).toFixed(0)}%
+              </div>
+            )}
           </div>
         )}
 
