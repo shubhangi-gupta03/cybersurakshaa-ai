@@ -98,6 +98,16 @@ export default function ThreatMap({ user, toast }) {
     return () => clearInterval(i)
   }, [])
 
+  // Redraw on container resize
+  useEffect(() => {
+    if (!mapRef.current) return
+    const ro = new ResizeObserver(() => {
+      if (stateGeo && !loading) drawStateMap()
+    })
+    ro.observe(mapRef.current)
+    return () => ro.disconnect()
+  }, [stateGeo, loading, selectedHour, selectedCrime])
+
   // Draw map when data loaded or settings change
   useEffect(() => {
     if (loading || !svgRef.current) return
@@ -105,16 +115,19 @@ export default function ThreatMap({ user, toast }) {
   }, [loading, stateGeo, selectedHour, selectedCrime])
 
   const drawStateMap = useCallback(() => {
-    if (!stateGeo || !svgRef.current) return
+    if (!stateGeo || !svgRef.current || !mapRef.current) return
     const el = svgRef.current
-    const W = el.parentElement?.clientWidth || 800
-    const H = el.parentElement?.clientHeight || 550
+    const container = mapRef.current
+    const W = container.clientWidth || 800
+    const H = container.clientHeight || 550
     const svg = d3.select(el).attr('width', W).attr('height', H)
     svg.selectAll('*').remove()
     svg.append('rect').attr('width',W).attr('height',H).attr('fill','#030a14')
 
     const todWeight = TOD[selectedHour]
-    const proj = d3.geoMercator().center([82.5,22]).scale(Math.min(W,H)*1.5).translate([W*0.4,H*0.5])
+    // fitSize centers and scales automatically to fill the available area
+    const padding = 30
+    const proj = d3.geoMercator().fitExtent([[padding, padding],[W - padding, H - padding]], stateGeo)
     const path = d3.geoPath().projection(proj)
 
     // Grid background
@@ -330,7 +343,7 @@ export default function ThreatMap({ user, toast }) {
           </div>
         )}
 
-        <svg ref={svgRef} style={{ display:'block' }}/>
+        <svg ref={svgRef} style={{ display:'block', width:'100%', height:'100%' }}/>
       </div>
 
       {/* Sidebar */}
