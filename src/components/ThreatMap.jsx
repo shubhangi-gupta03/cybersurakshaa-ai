@@ -41,33 +41,21 @@ function getRiskColor(complaints, riskLevel) {
 export default function ThreatMap({ user, toast }) {
   const svgRef = useRef(null)
   const mapRef = useRef(null)
-  const [mapMode, setMapMode] = useState('state') // 'state' or 'district'
   const [selectedHour, setSelectedHour] = useState(new Date().getHours())
   const [selectedCrime, setSelectedCrime] = useState('all')
   const [prediction, setPrediction] = useState(null)
   const [feed, setFeed] = useState([])
   const [tooltip, setTooltip] = useState(null)
-  const [districtData, setDistrictData] = useState(null)
   const [stateGeo, setStateGeo] = useState(null)
-  const [districtGeo, setDistrictGeo] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [selectedState, setSelectedState] = useState(null)
 
   // Load GeoJSON files
   useEffect(() => {
     const loadGeo = async () => {
       try {
-        const [stateRes, distRes, drRes] = await Promise.all([
-          fetch('/india.geojson'),
-          fetch('/districts.json'),
-          fetch('/district_risk.json')
-        ])
-        const [stateJson, distJson, drJson] = await Promise.all([
-          stateRes.json(), distRes.json(), drRes.json()
-        ])
+        const stateRes = await fetch('/india.geojson')
+        const stateJson = await stateRes.json()
         setStateGeo(stateJson)
-        setDistrictGeo(distJson)
-        setDistrictData(drJson)
       } catch(e) {
         console.error('GeoJSON load failed:', e)
       } finally {
@@ -113,9 +101,8 @@ export default function ThreatMap({ user, toast }) {
   // Draw map when data loaded or settings change
   useEffect(() => {
     if (loading || !svgRef.current) return
-    if (mapMode === 'state' && stateGeo) drawStateMap()
-    if (mapMode === 'district' && districtGeo) drawDistrictMap()
-  }, [loading, mapMode, stateGeo, districtGeo, selectedHour, selectedCrime, selectedState])
+    if (stateGeo) drawStateMap()
+  }, [loading, stateGeo, selectedHour, selectedCrime])
 
   const drawStateMap = useCallback(() => {
     if (!stateGeo || !svgRef.current) return
@@ -167,11 +154,7 @@ export default function ThreatMap({ user, toast }) {
           .attr('stroke', hasData ? '#050d1a' : '#2a4a80')
           .attr('stroke-width', hasData ? 0.8 : 1.2)
       })
-      .on('click', (ev, d) => {
-        const name = d.properties.NAME_1
-        setSelectedState(name)
-        setMapMode('district')
-      })
+      .on('click', () => {})
 
     // State labels
     const labelStates = ['Rajasthan','Madhya Pradesh','Maharashtra','Uttar Pradesh','Gujarat','Karnataka','Andhra Pradesh','Tamil Nadu']
@@ -205,106 +188,9 @@ export default function ThreatMap({ user, toast }) {
       }
       pulse(); setInterval(pulse, 2000+Math.random()*1200)
       pG.append('circle').attr('cx',pt[0]).attr('cy',pt[1]).attr('r',r*0.45)
-        .attr('fill',info.col).attr('opacity',0.9).style('cursor','pointer')
-        .on('click',()=>{setSelectedState(name);setMapMode('district')})
+        .attr('fill',info.col).attr('opacity',0.9)
     })
   }, [stateGeo, selectedHour, selectedCrime])
-
-  const drawDistrictMap = useCallback(() => {
-    if (!districtGeo || !svgRef.current) return
-    const el = svgRef.current
-    const W = el.parentElement?.clientWidth || 800
-    const H = el.parentElement?.clientHeight || 550
-    const svg = d3.select(el).attr('width',W).attr('height',H)
-    svg.selectAll('*').remove()
-    svg.append('rect').attr('width',W).attr('height',H).attr('fill','#030a14')
-
-    // Filter to selected state if set
-    let features = districtGeo.features
-    if (selectedState) {
-      features = features.filter(f => f.properties.NAME_1 === selectedState)
-    }
-
-    if (features.length === 0) { drawStateMap(); return }
-
-    const todWeight = TOD[selectedHour]
-
-    // Fit projection to filtered features
-    const filteredGeo = { type:'FeatureCollection', features }
-    const proj = d3.geoMercator().fitSize([W*0.9, H*0.9], filteredGeo)
-      .translate([W*0.45, H*0.48])
-    const path = d3.geoPath().projection(proj)
-
-    svg.append('g').selectAll('path')
-      .data(features).enter().append('path')
-      .attr('d', path)
-      .attr('fill', d => {
-        const dName = d.properties.NAME_2
-        const dr = districtData?.[dName]
-        if (dr) {
-          const adj = dr.complaints * todWeight
-          if (adj > 20000) return '#770000'
-          if (adj > 10000) return '#993300'
-          if (adj > 5000) return '#0a2870'
-          return '#043318'
-        }
-        // Fallback from state data
-        const sr = STATE_DATA[d.properties.NAME_1]
-        if (!sr) return '#06101e'
-        const adj = (sr.c / 20) * todWeight
-        if (adj > 5000) return '#770000'
-        if (adj > 2000) return '#993300'
-        if (adj > 500) return '#0a2870'
-        return '#043318'
-      })
-      .attr('fill-opacity', 0.85)
-      .attr('stroke','#1a3060').attr('stroke-width',0.5)
-      .style('cursor','pointer')
-      .on('mousemove', (ev, d) => {
-        const dName = d.properties.NAME_2
-        const dr = districtData?.[dName]
-        const pos = d3.pointer(ev, el.parentElement)
-        setTooltip({
-          name: dName,
-          state: d.properties.NAME_1,
-          dr, x: pos[0]+14, y: pos[1]-10, type:'district'
-        })
-        d3.select(ev.target).attr('stroke','#00c8f0').attr('stroke-width',1.5)
-      })
-      .on('mouseleave', ev => {
-        setTooltip(null)
-        d3.select(ev.target).attr('stroke','#1a3060').attr('stroke-width',0.5)
-      })
-
-    // District labels for known high-risk districts
-    svg.append('g').selectAll('text')
-      .data(features.filter(f => districtData?.[f.properties.NAME_2])).enter()
-      .append('text')
-      .attr('text-anchor','middle').attr('dominant-baseline','middle')
-      .attr('font-family','system-ui').attr('pointer-events','none')
-      .attr('font-size','8px').attr('fill','#a0c0e0').attr('opacity',0.9)
-      .attr('x', d => path.centroid(d)[0])
-      .attr('y', d => path.centroid(d)[1])
-      .text(d => d.properties.NAME_2.split(' ')[0])
-
-    // ATM dots on known districts
-    if (districtData) {
-      const pG = svg.append('g')
-      features.forEach(f => {
-        const dr = districtData[f.properties.NAME_2]
-        if (!dr || dr.complaints < 10000) return
-        const centroid = path.centroid(f)
-        if (!centroid || isNaN(centroid[0])) return
-        dr.atms?.slice(0,2).forEach((atm, i) => {
-          const cx = centroid[0] + (i-0.5)*12
-          const cy = centroid[1]
-          pG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',4)
-            .attr('fill','#ff3333').attr('opacity',0.8)
-          pG.append('title').text(`ATM: ${atm}`)
-        })
-      })
-    }
-  }, [districtGeo, districtData, selectedState, selectedHour])
 
   const CRIME_OPTIONS = ['all','Investment Scam','Digital Arrest','UPI Fraud','ATM Fraud','OTP Scam','Fake Loan App']
 
@@ -315,34 +201,12 @@ export default function ThreatMap({ user, toast }) {
         {/* Top controls */}
         <div style={{ position:'absolute', top:10, left:'50%', transform:'translateX(-50%)', zIndex:20,
           display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'center' }}>
-          {/* Map mode toggle */}
-          <div style={{ background:'rgba(3,10,20,.95)', border:'1px solid #1e3460', borderRadius:18,
-            padding:'4px 8px', display:'flex', gap:4 }}>
-            <button onClick={() => { setMapMode('state'); setSelectedState(null) }}
-              style={{ padding:'3px 10px', borderRadius:12, border:'none', fontSize:10, fontWeight:600,
-                background: mapMode==='state' ? '#1a6ef5' : 'transparent',
-                color: mapMode==='state' ? '#fff' : '#7a9cc0', cursor:'pointer', fontFamily:'inherit' }}>
-              🗺️ State View
-            </button>
-            <button onClick={() => setMapMode('district')}
-              style={{ padding:'3px 10px', borderRadius:12, border:'none', fontSize:10, fontWeight:600,
-                background: mapMode==='district' ? '#1a6ef5' : 'transparent',
-                color: mapMode==='district' ? '#fff' : '#7a9cc0', cursor:'pointer', fontFamily:'inherit' }}>
-              🔍 District View
-            </button>
-          </div>
-
           {/* Live indicator */}
           <div style={{ background:'rgba(3,10,20,.95)', border:'1px solid #1e3460', borderRadius:18,
             padding:'4px 12px', fontSize:10, color:'#00c8f0', display:'flex', alignItems:'center', gap:6 }}>
             <span style={{ width:6, height:6, background:'#ff3333', borderRadius:'50%',
               animation:'blink 1s infinite', display:'inline-block' }}/>
-            LIVE · {mapMode === 'state' ? 'State' : selectedState || 'District'} Risk Map · H1 2026
-            {selectedState && mapMode==='district' && (
-              <button onClick={() => { setSelectedState(null); setMapMode('state') }}
-                style={{ marginLeft:6, background:'none', border:'none', color:'#ff3333',
-                  cursor:'pointer', fontSize:10, fontFamily:'inherit' }}>✕ Back</button>
-            )}
+            LIVE · State Risk Map · H1 2026
           </div>
         </div>
 
@@ -414,11 +278,6 @@ export default function ThreatMap({ user, toast }) {
               <div style={{width:18,height:6,borderRadius:2,background:x.c}}/>{x.l}
             </div>
           ))}
-          {mapMode==='district' && (
-            <div style={{ fontSize:9, color:'#ff3333', marginTop:5, borderTop:'1px solid #1e3460', paddingTop:4 }}>
-              🔴 Red dots = ATM clusters
-            </div>
-          )}
         </div>
 
         {/* Tooltip */}
@@ -454,9 +313,6 @@ export default function ThreatMap({ user, toast }) {
                 </div>
                 <div style={{ fontSize:11, fontWeight:700, color:tooltip.info.col }}>
                   Risk: {tooltip.info.r}
-                </div>
-                <div style={{ fontSize:9, color:'#7a9cc0', marginTop:3 }}>
-                  Click to drill into districts
                 </div>
               </>
             ) : null}
@@ -495,50 +351,30 @@ export default function ThreatMap({ user, toast }) {
           </div>
         </div>
 
-        {/* State/district list */}
+        {/* State list */}
         <div style={{ padding:'8px 12px', borderBottom:'1px solid #1e3460' }}>
           <div style={{ fontSize:10, fontWeight:700, color:'#7a9cc0', textTransform:'uppercase', letterSpacing:1 }}>
-            {mapMode==='district' && selectedState ? `📍 ${selectedState} Districts` : '📊 State Risk H1 2026'}
+            📊 State Risk H1 2026
           </div>
         </div>
         <div style={{ flex:1, overflowY:'auto', padding:7, display:'flex', flexDirection:'column', gap:5 }}>
-          {mapMode === 'district' && selectedState ? (
-            // Show districts for selected state
-            Object.entries(districtData || {})
-              .filter(([,d]) => d.state === selectedState)
-              .sort((a,b) => b[1].complaints - a[1].complaints)
-              .map(([name, d]) => (
-                <div key={name} style={{ background:'#131f30', border:'1px solid #1e3460',
-                  borderRadius:7, padding:'8px 10px', borderLeft:`3px solid ${RISK_COLORS[d.risk]}` }}>
-                  <div style={{ fontSize:11, fontWeight:700 }}>{name}</div>
-                  <div style={{ fontSize:10, color:'#7a9cc0', marginTop:2 }}>{d.atms?.[0]}</div>
-                  <div style={{ display:'flex', justifyContent:'space-between', marginTop:3 }}>
-                    <span style={{ fontSize:10, color:'#7a9cc0' }}>{d.complaints.toLocaleString('en-IN')}</span>
-                    <span style={{ fontSize:9, fontWeight:700, padding:'2px 5px', borderRadius:4,
-                      background:`rgba(${d.risk==='CRITICAL'?'255,51,51':d.risk==='HIGH'?'255,107,0':'26,110,245'},.12)`,
-                      color:RISK_COLORS[d.risk] }}>{d.risk}</span>
-                  </div>
+          {Object.entries(STATE_DATA)
+            .sort((a,b) => b[1].c - a[1].c)
+            .slice(0, 10)
+            .map(([name, info]) => (
+              <div key={name}
+                style={{ background:'#131f30', border:'1px solid #1e3460', borderRadius:7,
+                  padding:'8px 10px', borderLeft:`3px solid ${info.col}` }}>
+                <div style={{ fontSize:11, fontWeight:700 }}>{name}</div>
+                <div style={{ display:'flex', justifyContent:'space-between', marginTop:3 }}>
+                  <span style={{ fontSize:10, color:'#7a9cc0' }}>{info.c.toLocaleString('en-IN')}</span>
+                  <span style={{ fontSize:9, fontWeight:700, padding:'2px 5px', borderRadius:4,
+                    background:`rgba(${info.r==='CRITICAL'?'255,51,51':info.r==='HIGH'?'255,107,0':'26,110,245'},.12)`,
+                    color:info.col }}>{info.r}</span>
                 </div>
-              ))
-          ) : (
-            // Show all states
-            Object.entries(STATE_DATA)
-              .sort((a,b) => b[1].c - a[1].c)
-              .slice(0, 10)
-              .map(([name, info]) => (
-                <div key={name} onClick={() => { setSelectedState(name); setMapMode('district') }}
-                  style={{ background:'#131f30', border:'1px solid #1e3460', borderRadius:7,
-                    padding:'8px 10px', borderLeft:`3px solid ${info.col}`, cursor:'pointer' }}>
-                  <div style={{ fontSize:11, fontWeight:700 }}>{name}</div>
-                  <div style={{ display:'flex', justifyContent:'space-between', marginTop:3 }}>
-                    <span style={{ fontSize:10, color:'#7a9cc0' }}>{info.c.toLocaleString('en-IN')}</span>
-                    <span style={{ fontSize:9, fontWeight:700, padding:'2px 5px', borderRadius:4,
-                      background:`rgba(${info.r==='CRITICAL'?'255,51,51':info.r==='HIGH'?'255,107,0':'26,110,245'},.12)`,
-                      color:info.col }}>{info.r} →</span>
-                  </div>
-                </div>
-              ))
-          )}
+              </div>
+            ))
+          }
         </div>
       </div>
     </div>
