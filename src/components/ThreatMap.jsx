@@ -447,6 +447,18 @@ export default function ThreatMap({ user, toast }) {
           }
         </div>
       </div>
+      <div style={{
+        padding: '10px 20px',
+        background: '#0a1929',
+        borderTop: '1px solid #1e3a5f',
+        fontSize: 11,
+        color: '#4a7a9b',
+        textAlign: 'center',
+        fontStyle: 'italic',
+        lineHeight: 1.5
+      }}>
+        ⚠️ <strong style={{ color: '#5a8aab', fontStyle: 'normal' }}>Map Disclaimer:</strong> Certain territories including Pakistan-Occupied Kashmir (POK) and the Aksai Chin region of Jammu &amp; Kashmir are not displayed on this map. This is because the UN/Natural Earth GeoJSON dataset used as the base map source does not demarcate these areas within India's boundary. These territories are constitutionally recognised as integral parts of India.
+      </div>
     </div>
   )
 }
