@@ -104,8 +104,10 @@ export default function ThreatMap({ user, toast }) {
     if (!stateGeo || !svgRef.current || !mapRef.current) return
     const el = svgRef.current
     const container = mapRef.current
-    const W = container.clientWidth || 800
-    const H = container.clientHeight || 550
+    const rect = container.getBoundingClientRect()
+    const W = rect.width || container.clientWidth || 800
+    const H = rect.height || container.clientHeight || 550
+    if (W < 10 || H < 10) return // not mounted yet, ResizeObserver will retry
     const svg = d3.select(el).attr('width', W).attr('height', H)
     svg.selectAll('*').remove()
     svg.append('rect').attr('width',W).attr('height',H).attr('fill','#030a14')
@@ -251,6 +253,9 @@ export default function ThreatMap({ user, toast }) {
   useEffect(() => {
     if (loading || !svgRef.current || !stateGeo) return
     drawStateMap()
+    // Retry after layout settles — fixes blank map on first render
+    const t = setTimeout(() => drawStateMap(), 200)
+    return () => clearTimeout(t)
   }, [loading, stateGeo, selectedHour, selectedCrime, drawStateMap])
 
   // ResizeObserver — stable (empty deps), calls via ref to avoid infinite loop
@@ -264,7 +269,9 @@ export default function ThreatMap({ user, toast }) {
   const CRIME_OPTIONS = ['all','Investment Scam','Digital Arrest','UPI Fraud','ATM Fraud','OTP Scam','Fake Loan App']
 
   return (
-    <div style={{ position:'absolute', inset:0, display:'flex' }}>
+    <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column' }}>
+      {/* Main content row */}
+      <div style={{ flex:1, display:'flex', minHeight:0 }}>
       {/* Map area */}
       <div style={{ flex:1, position:'relative', background:'#030a14', overflow:'hidden', minWidth:0 }} ref={mapRef}>
         {/* Top controls */}
@@ -447,15 +454,18 @@ export default function ThreatMap({ user, toast }) {
           }
         </div>
       </div>
+      </div>
+      {/* Disclaimer bar */}
       <div style={{
-        padding: '10px 20px',
+        padding: '8px 20px',
         background: '#0a1929',
         borderTop: '1px solid #1e3a5f',
         fontSize: 11,
         color: '#4a7a9b',
         textAlign: 'center',
         fontStyle: 'italic',
-        lineHeight: 1.5
+        lineHeight: 1.5,
+        flexShrink: 0
       }}>
         ⚠️ <strong style={{ color: '#5a8aab', fontStyle: 'normal' }}>Map Disclaimer:</strong> Certain territories including Pakistan-Occupied Kashmir (POK) and the Aksai Chin region of Jammu &amp; Kashmir are not displayed on this map. This is because the UN/Natural Earth GeoJSON dataset used as the base map source does not demarcate these areas within India's boundary. These territories are constitutionally recognised as integral parts of India.
       </div>
